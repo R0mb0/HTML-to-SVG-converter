@@ -72,5 +72,5 @@
   <ol>
       <li><strong>Clone this repository</strong> or simply download the <code>index.html</code> file.</li>
       <li>Double-click <code>index.html</code> to open it in your favorite browser.</li>
-      <li>Done. No <code>npm install</code>, no local servers needed!</li>
+      <li>Done.
   </ol>
