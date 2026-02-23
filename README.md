@@ -8,6 +8,10 @@
 
   <div align="center">
       <h2><a href="https://r0mb0.github.io/HTML-to-SVG-converter/">👉 Click here to test the app! 👈</a></h2>
+
+[![0001.png](https://github.com/R0mb0/HTML-to-SVG-converter/blob/main/Readme_imgs/0001.png?raw=true)](https://r0mb0.github.io/HTML-to-SVG-converter/)
+[![0002.png](https://github.com/R0mb0/HTML-to-SVG-converter/blob/main/Readme_imgs/0002.png?raw=true)](https://r0mb0.github.io/HTML-to-SVG-converter/)
+        
   </div>
 
   <h2>📄 Example snippet to test</h2>
