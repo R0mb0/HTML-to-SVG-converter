@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convert HTML to SVG</title>
+    <style>
+        /* CSS Variables for Light/Dark Mode */
+        :root {
+            --bg-color: #f3f4f6;
+            --surface-color: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --input-bg: #f9fafb;
+            --primary: #10b981; /* Green */
+            --primary-hover: #059669;
+            --toolbar-bg: #f3f4f6;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #111827;
+                --surface-color: #1f2937;
+                --text-main: #f9fafb;
+                --text-muted: #9ca3af;
+                --border-color: #374151;
+                --input-bg: #111827;
+                --toolbar-bg: #374151;
+                --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        /* App UI Scoped Reset
+           We avoid using the universal selector '*' globally so that the user's
+           injected HTML in #measure-container acts like a blank slate browser.
+        */
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Limit styling rules only to the app components */
+        .app-container, .app-container * {
+            box-sizing: border-box;
+        }
+
+        .app-container h1, .app-container p {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Main Container */
+        .app-container {
+            background-color: var(--surface-color);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Grid Layout */
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            min-height: 400px;
+        }
+
+        @media (max-width: 768px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Panels */
+        .panel {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            background-color: var(--input-bg);
+        }
+
+        .panel-header {
+            background-color: var(--toolbar-bg);
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .toolbar-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background-color: var(--border-color);
+            color: var(--text-main);
+        }
+
+        /* Left Panel - Input */
+        textarea {
+            flex-grow: 1;
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text-main);
+            padding: 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            resize: none;
+            outline: none;
+        }
+
+        textarea::placeholder {
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
+        /* Right Panel - Output */
+        .render-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            overflow: auto;
+            position: relative;
+        }
+
+        /* Checkerboard pattern to show transparency */
+        .checkerboard {
+            background-image:
+                linear-gradient(45deg, #ccc 25%, transparent 25%),
+                linear-gradient(-45deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Ensure checkerboard isn't too bright in dark mode */
+        @media (prefers-color-scheme: dark) {
+            .checkerboard {
+                background-image:
+                    linear-gradient(45deg, #2a3441 25%, transparent 25%),
+                    linear-gradient(-45deg, #2a3441 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, #2a3441 75%),
+                    linear-gradient(-45deg, transparent 75%, #2a3441 75%);
+            }
+        }
+
+        #preview-image {
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Footer / Action Area */
+        .actions {
+            display: flex;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .btn-download {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-download:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-download:active {
+            transform: translateY(0);
+        }
+
+        .btn-download:disabled {
+            background-color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Hidden div used for exact measurements */
+        #measure-container {
+            position: absolute;
+            visibility: hidden;
+            display: inline-block;
+            pointer-events: none;
+            z-index: -1000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <h1>Convert HTML to SVG</h1>
+            <p class="subtitle">Instantly render your HTML code into a perfectly sized, transparent vector graphic.</p>
+        </header>
+
+        <div class="workspace">
+            <!-- Left Panel: Input -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">HTML Input</span>
+                    <div>
+                        <button class="toolbar-btn" onclick="clearInput()">Clear</button>
+                    </div>
+                </div>
+                <textarea id="html-input" placeholder="Paste here your HTML code...
+
+Example:
+<div style='background: blue; color: white; padding: 20px; border-radius: 10px;'>
+  Hello SVG!
+</div>"></textarea>
+            </div>
+
+            <!-- Right Panel: Output -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">SVG Render</span>
+                    <div>
+                        <button class="toolbar-btn" onclick="toggleBackground()" id="bg-toggle-btn">Solid Bg</button>
+                    </div>
+                </div>
+                <div class="render-container checkerboard" id="render-bg">
+                    <img id="preview-image" src="" style="display: none;" alt="SVG Preview" />
+                    <span id="placeholder-text" style="color: var(--text-muted);">Render preview will appear here</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button id="download-btn" class="btn-download" onclick="downloadSVG()" disabled>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Download SVG
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden element for measuring exact dimensions -->
+    <div id="measure-container"></div>
+
+    <script>
+        const htmlInput = document.getElementById('html-input');
+        const previewImage = document.getElementById('preview-image');
+        const placeholderText = document.getElementById('placeholder-text');
+        const downloadBtn = document.getElementById('download-btn');
+        const measureContainer = document.getElementById('measure-container');
+        const renderBg = document.getElementById('render-bg');
+        const bgToggleBtn = document.getElementById('bg-toggle-btn');
+
+        let currentSvgUrl = null;
+        let isCheckerboard = true;
+
+        // Listen for input changes with a slight debounce
+        let timeout = null;
+        htmlInput.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(processHTML, 300); // Wait 300ms after user stops typing
+        });
+
+        function clearInput() {
+            htmlInput.value = '';
+            processHTML();
+        }
+
+        function toggleBackground() {
+            isCheckerboard = !isCheckerboard;
+            if (isCheckerboard) {
+                renderBg.classList.add('checkerboard');
+                bgToggleBtn.textContent = 'Solid Bg';
+            } else {
+                renderBg.classList.remove('checkerboard');
+                bgToggleBtn.textContent = 'Transparent Bg';
+            }
+        }
+
+        function processHTML() {
+            const rawHtml = htmlInput.value.trim();
+
+            if (!rawHtml) {
+                resetPreview();
+                return;
+            }
+
+            // 1. Measure the exact dimensions of the content
+            measureContainer.innerHTML = rawHtml;
+
+            // Allow a tiny delay for browser to render and calculate bounds
+            setTimeout(() => {
+                // Use getBoundingClientRect for superior accuracy (captures sub-pixels and outer borders)
+                const rect = measureContainer.getBoundingClientRect();
+                const width = Math.ceil(rect.width);
+                const height = Math.ceil(rect.height);
+
+                if (width === 0 || height === 0) {
+                    resetPreview();
+                    return;
+                }
+
+                generateSVG(rawHtml, width, height);
+            }, 10);
+        }
+
+        function generateSVG(htmlContent, width, height) {
+            // Usiamo XMLSerializer per assicurarci che l'HTML sia XML valido (XHTML).
+            // L'SVG è estremamente severo: tag non chiusi come <br> o la presenza
+            // di <!DOCTYPE html> rompono il render senza mostrare errori.
+            const wrapper = document.createElement('div');
+            wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+            wrapper.style.margin = '0';
+            wrapper.style.padding = '0';
+            wrapper.style.width = '100%';
+            wrapper.style.height = '100%';
+            wrapper.style.display = 'inline-block';
+
+            // Il browser processerà l'HTML qui, "aggiustando" i tag rotti o malformati
+            wrapper.innerHTML = htmlContent;
+
+            const serializer = new XMLSerializer();
+            const validXHTML = serializer.serializeToString(wrapper);
+
+            const svgString = `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <foreignObject width="100%" height="100%">
+        ${validXHTML}
+    </foreignObject>
+</svg>`.trim();
+
+            // Create a Blob from the SVG string
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+
+            // Clean up previous URL to prevent memory leaks
+            if (currentSvgUrl) {
+                URL.revokeObjectURL(currentSvgUrl);
+            }
+
+            // Create new URL and update UI
+            currentSvgUrl = URL.createObjectURL(blob);
+            previewImage.src = currentSvgUrl;
+            previewImage.style.display = 'block';
+            placeholderText.style.display = 'none';
+            downloadBtn.disabled = false;
+        }
+
+        function resetPreview() {
+            if (currentSvgUrl) {
+                URL.revokeObjectURL(currentSvgUrl);
+                currentSvgUrl = null;
+            }
+            previewImage.style.display = 'none';
+            previewImage.src = '';
+            placeholderText.style.display = 'block';
+            downloadBtn.disabled = true;
+            measureContainer.innerHTML = '';
+        }
+
+        function downloadSVG() {
+            if (!currentSvgUrl) return;
+
+            const a = document.createElement('a');
+            a.href = currentSvgUrl;
+            a.download = 'MySVG.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // Initialize with default state
+        resetPreview();
+    </script>
+</body>
+</html>
